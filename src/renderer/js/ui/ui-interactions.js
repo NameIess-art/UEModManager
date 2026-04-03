@@ -2273,10 +2273,10 @@ function applyMainListDropHint(target, clientY) {
     let isDropAfter = false;
     let dropMode = 'swap';
 
-    if (!isGroupTarget && !isGroupDrag) {
+    if (!isGroupDrag) {
         const rect = target.getBoundingClientRect();
         const y = clientY - rect.top;
-        const threshold = rect.height * 0.25;
+        const threshold = Math.min(Math.max(rect.height * 0.25, 18), isGroupTarget ? 56 : 40);
         isDropBefore = y < threshold;
         isDropAfter = y > rect.height - threshold;
         dropMode = (isDropBefore || isDropAfter) ? (isDropBefore ? 'before' : 'after') : 'swap';
@@ -2324,13 +2324,36 @@ function queueMainListDragOver(target, clientY) {
     });
 }
 
+function resolveMainListDropTarget(rawTarget, clientY) {
+    const directTarget = rawTarget instanceof Element
+        ? rawTarget.closest('.mod-list > .mod-item, .mod-list > .component-wrapper')
+        : null;
+    if (directTarget && !draggedItems.includes(directTarget)) {
+        return directTarget;
+    }
+
+    const modList = document.querySelector('.mod-list');
+    if (!modList) return null;
+
+    const candidates = Array.from(modList.querySelectorAll(':scope > .mod-item, :scope > .component-wrapper'))
+        .filter(item => !draggedItems.includes(item));
+    if (candidates.length === 0) return null;
+
+    const afterElement = candidates.find(item => {
+        const rect = item.getBoundingClientRect();
+        return clientY <= rect.top + rect.height / 2;
+    });
+
+    return afterElement || candidates[candidates.length - 1];
+}
+
 function handleDragOverOptimized(e) {
     if (!isDragSortEnabled() || draggedItems.length === 0) return;
 
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
-    const target = e.target.closest('.mod-list > .mod-item, .mod-list > .component-wrapper');
+    const target = resolveMainListDropTarget(e.target, e.clientY);
     if (!target || draggedItems.includes(target)) {
         clearMainListDropHints();
         return;
@@ -2400,7 +2423,7 @@ function handleDragOver(e) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
-    const target = e.target.closest('.mod-list > .mod-item, .mod-list > .component-wrapper');
+    const target = resolveMainListDropTarget(e.target, e.clientY);
     if (!target || draggedItems.includes(target)) {
         clearMainListDropHints();
         return;
